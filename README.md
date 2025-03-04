@@ -5,7 +5,7 @@
 <h2>Project Screenshots:</h2>
 
 <img src="https://github.com/makethpanda/Data-project-2025/blob/main/screenshots/image%20copy%207.png" alt="project-screenshot" width="400" height="400/">
-<img src="https://github.com/makethpanda/Data-project-2025/blob/main/screenshots/image%20copy%206.png" alt="project-screenshot" width="400" height="400/">
+<img src="https://github.com/makethpanda/Data-project-2025/blob/main/screenshots/image%20copy%206.png" alt="project-screenshot" width="600" height="400/">
 
   
   
