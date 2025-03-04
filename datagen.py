@@ -1,125 +1,166 @@
 import random
 from faker import Faker
 
-# Initialize the Faker object
 fake = Faker()
 
-# Helper functions to generate random data
-def generate_years():
-    return [str(year) for year in range(2024, 2034)]
+# Fixed parameters
+YEAR_ID = 1  # L1 2025
+NUM_CLASSES = 4  # INT 1, INT 2, PLUS 1, PLUS 2
+NUM_STUDENTS_PER_CLASS = (30, 40)
+NUM_TEACHERS = 10
+NUM_MODULES = 4
+NUM_SUBJECTS = 4
+NUM_ROOMS = 5  # Ensure rooms exist in DB
+SESSIONS_PER_SUBJECT = 3
+
+# Predefined modules and subjects
+MODULES = ['Mathematics', 'Computer Science', 'Physics', 'Chemistry']
+SUBJECTS = {
+    'Mathematics': ['Algebra', 'Calculus'],
+    'Computer Science': ['Programming', 'Data Structures'],
+    'Physics': ['Mechanics', 'Electromagnetism'],
+    'Chemistry': ['Organic Chemistry', 'Inorganic Chemistry']
+}
 
 def generate_teacher():
+    first_name = fake.first_name()
+    last_name = fake.last_name()
+    email = f"{first_name.lower()}.{last_name.lower()}@efrei.net"
     return {
-        'first_name': fake.first_name(),
-        'last_name': fake.last_name(),
-        'email': fake.email()
-    }
-
-def generate_module(teacher_id, year_id):
-    module_names = ['Mathematics', 'Computer Science', 'Physics', 'Chemistry', 'History', 
-                    'Biology', 'Geography', 'Economics', 'Philosophy', 'Art']
-    return {
-        'name': random.choice(module_names),
-        'head_id': teacher_id,
-        'year_id': year_id
-    }
-
-def generate_subject(module_id, teacher_id):
-    subject_names = ['Algebra', 'Programming', 'Mechanics', 'Organic Chemistry', 'World History', 
-                     'Biology Basics', 'Human Geography', 'Microeconomics', 'Ethical Theory', 'Sculpture']
-    return {
-        'name': random.choice(subject_names),
-        'module_id': module_id,
-        'teacher_id': teacher_id
+        'first_name': first_name,
+        'last_name': last_name,
+        'email': email
     }
 
 def generate_student(class_id):
+    first_name = fake.first_name()
+    last_name = fake.last_name()
+    email = f"{first_name.lower()}.{last_name.lower()}@efrei.net"
     return {
-        'first_name': fake.first_name(),
-        'last_name': fake.last_name(),
-        'email': fake.email(),
-        'class_id': class_id
+        'first_name': first_name,
+        'last_name': last_name,
+        'email': email
     }
 
-def generate_class_sessions(class_id, subject_id, teacher_id, room_id):
-    session_dates = [fake.date_this_year() for _ in range(10)]
-    return [{
-        'class_id': class_id,
-        'subject_id': subject_id,
-        'session_date': date,
-        'teacher_id': teacher_id,
-        'room_id': room_id
-    } for date in session_dates]
+def generate_class_sessions(class_id, subject_id, teacher_id, room_id, existing_sessions, class_sessions_map):
+    session_dates = sorted(fake.date_this_year() for _ in range(SESSIONS_PER_SUBJECT))
+    new_sessions = []
+    for date in session_dates:
+        # Check if the current class already has a session on this date
+        if any(session['class_id'] == class_id and session['session_date'] == date for session in existing_sessions):
+            continue  # Skip adding this session, as the class already has one at this time
 
-def generate_attendance(student_id, session_id):
-    return {
-        'student_id': student_id,
-        'session_id': session_id,
-        'status': random.choice(['Present', 'Absent', 'Late'])
-    }
+        # If the room is Visio, we can overlap
+        if room_id == NUM_ROOMS:
+            new_sessions.append({
+                'class_id': class_id,
+                'subject_id': subject_id,
+                'session_date': date,
+                'teacher_id': teacher_id,
+                'room_id': room_id
+            })
+        else:
+            # Check if the room and teacher are already booked at the same time
+            overlapping = False
+            for session in existing_sessions:
+                if session['session_date'] == date and session['room_id'] == room_id:
+                    overlapping = True
+                    break
+            # Ensure the class doesn't have more than one session at the same time
+            if not overlapping and class_id not in class_sessions_map.get(date, set()):
+                new_sessions.append({
+                    'class_id': class_id,
+                    'subject_id': subject_id,
+                    'session_date': date,
+                    'teacher_id': teacher_id,
+                    'room_id': room_id
+                })
+                # Track the date for this class
+                if date not in class_sessions_map:
+                    class_sessions_map[date] = set()
+                class_sessions_map[date].add(class_id)
+    return new_sessions
 
 def generate_marks(student_id, subject_id):
     return {
         'student_id': student_id,
         'subject_id': subject_id,
-        'mark': round(random.uniform(10, 20), 2),
+        'mark': round(random.uniform(0, 20), 2),
         'coefficient': random.choice([1.0, 1.5, 2.0, 2.5, 3.0])
     }
 
 # Generate SQL data
-def generate_sql_data(num_teachers=10, num_classes=10, num_students=100, num_subjects=10):
+def generate_sql_data():
     sql_lines = []
 
-    # Insert years
-    sql_lines.append("INSERT INTO years (name) VALUES " + ",".join([f"('{year}')" for year in generate_years()]) + ";")
-    
-    # Insert teachers
-    for i in range(num_teachers):
-        teacher = generate_teacher()
-        sql_lines.append(f"INSERT INTO teachers (first_name, last_name, email) VALUES ('{teacher['first_name']}', '{teacher['last_name']}', '{teacher['email']}');")
-    
-    # Insert modules and subjects
-    module_id = 1
-    for year in range(1, 11):  # For each year
-        for teacher_id in range(1, num_teachers+1):
-            module = generate_module(teacher_id, year)
-            sql_lines.append(f"INSERT INTO modules (name, head_id, year_id) VALUES ('{module['name']}', {module['head_id']}, {year});")
-            subject = generate_subject(module_id, teacher_id)
-            sql_lines.append(f"INSERT INTO subjects (name, module_id, teacher_id) VALUES ('{subject['name']}', {module_id}, {teacher_id});")
-            module_id += 1
-    
-    # Insert classes
-    for i in range(1, num_classes+1):
-        sql_lines.append(f"INSERT INTO classes (name, year_id) VALUES ('Class {chr(64+i)}', {random.choice(range(1, 11))});")
+    # Insert year (L1 2025)
+    sql_lines.append("INSERT INTO years (id, name) VALUES (1, '2025');")
 
-    # Insert students
-    class_id = 1
-    for i in range(num_students):
-        student = generate_student(class_id)
-        sql_lines.append(f"INSERT INTO students (first_name, last_name, email, class_id) VALUES ('{student['first_name']}', '{student['last_name']}', '{student['email']}', {student['class_id']});")
-        class_id = random.choice(range(1, num_classes+1))  # Assign randomly to different classes
-    
-    # Insert class sessions
-    for class_id in range(1, num_classes+1):
-        for subject_id in range(1, num_subjects+1):
-            for teacher_id in range(1, num_teachers+1):
-                room_id = random.choice(range(1, 11))  # 10 rooms available
-                sessions = generate_class_sessions(class_id, subject_id, teacher_id, room_id)
-                for session in sessions:
-                    sql_lines.append(f"INSERT INTO class_sessions (class_id, subject_id, session_date, teacher_id, room_id) VALUES ({session['class_id']}, {session['subject_id']}, '{session['session_date']}', {session['teacher_id']}, {session['room_id']});")
-    
-    # Insert attendance
-    for student_id in range(1, num_students+1):
-        for session_id in range(1, num_teachers * num_subjects * 10 + 1):
-            attendance = generate_attendance(student_id, session_id)
-            sql_lines.append(f"INSERT INTO attendance (student_id, session_id, status) VALUES ({attendance['student_id']}, {attendance['session_id']}, '{attendance['status']}');")
-    
-    # Insert marks
-    for student_id in range(1, num_students+1):
-        for subject_id in range(1, num_subjects+1):
+    # Insert rooms (Ensure valid room_id values exist, including a "Visio" room)
+    room_id_map = {}
+    for i in range(1, NUM_ROOMS + 1):
+        room_name = f"Room {i}"
+        if i == NUM_ROOMS:
+            room_name = "Visio"  # Special Visio room
+        room_id_map[i] = room_name
+        sql_lines.append(f"INSERT INTO rooms (id, name) VALUES ({i}, '{room_name}');")
+
+    # Insert teachers
+    for i in range(1, NUM_TEACHERS + 1):
+        teacher = generate_teacher()
+        sql_lines.append(f"INSERT INTO teachers (id, first_name, last_name, email) VALUES ({i}, '{teacher['first_name']}', '{teacher['last_name']}', '{teacher['email']}');")
+
+    # Insert classes (INT 1-2, PLUS 1-2)
+    class_names = ["INT 1", "INT 2", "PLUS 1", "PLUS 2"]
+    for i, class_name in enumerate(class_names, 1):
+        sql_lines.append(f"INSERT INTO classes (id, name, year_id) VALUES ({i}, '{class_name}', {YEAR_ID});")
+
+    # Insert modules
+    module_id_map = {}
+    for i, module in enumerate(MODULES, 1):
+        sql_lines.append(f"INSERT INTO modules (id, name, head_id, year_id) VALUES ({i}, '{module}', {random.randint(1, NUM_TEACHERS)}, {YEAR_ID});")
+        module_id_map[module] = i  # Store module ID
+
+    # Insert subjects
+    subject_id_map = {}
+    subject_counter = 1
+    for module, subject_list in SUBJECTS.items():
+        for subject in subject_list:
+            if subject_counter > NUM_SUBJECTS:
+                break
+            sql_lines.append(f"INSERT INTO subjects (id, name, module_id, teacher_id) VALUES ({subject_counter}, '{subject}', {module_id_map[module]}, {random.randint(1, NUM_TEACHERS)});")
+            subject_id_map[subject] = subject_counter  # Store subject ID
+            subject_counter += 1
+
+    # Insert students (30-40 per class)
+    student_id = 1
+    for class_id in range(1, NUM_CLASSES + 1):
+        num_students = random.randint(*NUM_STUDENTS_PER_CLASS)
+        for _ in range(num_students):
+            student = generate_student(class_id)
+            sql_lines.append(f"INSERT INTO students (id, first_name, last_name, email, class_id) VALUES ({student_id}, '{student['first_name']}', '{student['last_name']}', '{student['email']}', {class_id});")
+            student_id += 1
+
+    # Insert class sessions (3 per subject)
+    session_id = 1
+    existing_sessions = []
+    class_sessions_map = {}  # Track which classes have sessions on each date
+    for class_id in range(1, NUM_CLASSES + 1):
+        for subject_id in range(1, NUM_SUBJECTS + 1):
+            teacher_id = random.randint(1, NUM_TEACHERS)
+            room_id = random.randint(1, NUM_ROOMS)  # Ensure valid foreign key
+            sessions = generate_class_sessions(class_id, subject_id, teacher_id, room_id, existing_sessions, class_sessions_map)
+            for session in sessions:
+                sql_lines.append(f"INSERT INTO class_sessions (id, class_id, subject_id, session_date, teacher_id, room_id) VALUES ({session_id}, {session['class_id']}, {session['subject_id']}, '{session['session_date']}', {session['teacher_id']}, {session['room_id']});")
+                existing_sessions.extend(sessions)
+                session_id += 1
+
+    # Insert marks for each student in each subject
+    for student_id in range(1, student_id):  # student_id already incremented
+        for subject_id in range(1, NUM_SUBJECTS + 1):
             marks = generate_marks(student_id, subject_id)
             sql_lines.append(f"INSERT INTO marks (student_id, subject_id, mark, coefficient) VALUES ({marks['student_id']}, {marks['subject_id']}, {marks['mark']}, {marks['coefficient']});")
-    
+
     return sql_lines
 
 # Write SQL to a file
