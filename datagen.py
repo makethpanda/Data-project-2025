@@ -1,5 +1,6 @@
 import random
 from faker import Faker
+from datetime import datetime, timedelta
 
 fake = Faker()
 
@@ -21,6 +22,22 @@ SUBJECTS = {
     'Physics': ['Mechanics', 'Electromagnetism'],
     'Chemistry': ['Organic Chemistry', 'Inorganic Chemistry']
 }
+
+# Function to generate random date + time in SQL DATETIME format
+def generate_random_datetime():
+    # Generate a random date this year
+    random_date = fake.date_this_year()
+
+    # Generate a random time
+    random_hour = random.randint(0, 23)
+    random_minute = random.randint(0, 59)
+    random_second = random.randint(0, 59)
+
+    # Combine the date and time into a single datetime string in SQL format
+    random_datetime = datetime.combine(random_date, datetime.min.time()) + timedelta(hours=random_hour, minutes=random_minute, seconds=random_second)
+    
+    # Return as string in SQL DATETIME format
+    return random_datetime.strftime('%Y-%m-%d %H:%M:%S')
 
 def generate_teacher():
     first_name = fake.first_name()
@@ -46,8 +63,11 @@ def generate_class_sessions(class_id, subject_id, teacher_id, room_id, existing_
     session_dates = sorted(fake.date_this_year() for _ in range(SESSIONS_PER_SUBJECT))
     new_sessions = []
     for date in session_dates:
-        # Check if the current class already has a session on this date
-        if any(session['class_id'] == class_id and session['session_date'] == date for session in existing_sessions):
+        # Convert date to DATETIME format by adding a random time
+        session_datetime = generate_random_datetime()
+        
+        # Check if the current class already has a session on this datetime
+        if any(session['class_id'] == class_id and session['session_datetime'] == session_datetime for session in existing_sessions):
             continue  # Skip adding this session, as the class already has one at this time
 
         # If the room is Visio, we can overlap
@@ -55,7 +75,7 @@ def generate_class_sessions(class_id, subject_id, teacher_id, room_id, existing_
             new_sessions.append({
                 'class_id': class_id,
                 'subject_id': subject_id,
-                'session_date': date,
+                'session_datetime': session_datetime,
                 'teacher_id': teacher_id,
                 'room_id': room_id
             })
@@ -63,23 +83,24 @@ def generate_class_sessions(class_id, subject_id, teacher_id, room_id, existing_
             # Check if the room and teacher are already booked at the same time
             overlapping = False
             for session in existing_sessions:
-                if session['session_date'] == date and session['room_id'] == room_id:
+                if session['session_datetime'] == session_datetime and session['room_id'] == room_id:
                     overlapping = True
                     break
             # Ensure the class doesn't have more than one session at the same time
-            if not overlapping and class_id not in class_sessions_map.get(date, set()):
+            if not overlapping and class_id not in class_sessions_map.get(session_datetime, set()):
                 new_sessions.append({
                     'class_id': class_id,
                     'subject_id': subject_id,
-                    'session_date': date,
+                    'session_datetime': session_datetime,
                     'teacher_id': teacher_id,
                     'room_id': room_id
                 })
-                # Track the date for this class
-                if date not in class_sessions_map:
-                    class_sessions_map[date] = set()
-                class_sessions_map[date].add(class_id)
+                # Track the datetime for this class
+                if session_datetime not in class_sessions_map:
+                    class_sessions_map[session_datetime] = set()
+                class_sessions_map[session_datetime].add(class_id)
     return new_sessions
+
 
 def generate_marks(student_id, subject_id):
     return {
@@ -151,7 +172,7 @@ def generate_sql_data():
             room_id = random.randint(1, NUM_ROOMS)  # Ensure valid foreign key
             sessions = generate_class_sessions(class_id, subject_id, teacher_id, room_id, existing_sessions, class_sessions_map)
             for session in sessions:
-                sql_lines.append(f"INSERT INTO class_sessions (id, class_id, subject_id, session_date, teacher_id, room_id) VALUES ({session_id}, {session['class_id']}, {session['subject_id']}, '{session['session_date']}', {session['teacher_id']}, {session['room_id']});")
+                sql_lines.append(f"INSERT INTO class_sessions (id, class_id, subject_id, session_date, teacher_id, room_id) VALUES ({session_id}, {session['class_id']}, {session['subject_id']}, '{session['session_datetime']}', {session['teacher_id']}, {session['room_id']});")
                 existing_sessions.extend(sessions)
                 session_id += 1
 
