@@ -187,9 +187,9 @@ JOIN TotalStudents ts ON ta.class_id = ts.class_id
 ORDER BY absence_ratio DESC;
 
 WITH StudentPerformance AS (
-    SELECT m.student_id, m.subject_id, m.mark,
-           AVG(m.mark) OVER (PARTITION BY m.student_id) AS avg_grade
-    FROM marks m
+		SELECT m.student_id, m.subject_id, m.mark,
+			   AVG(m.mark) OVER (PARTITION BY m.student_id) AS avg_grade
+		FROM marks m
 ),
 
 -- cte student standard deviation 
