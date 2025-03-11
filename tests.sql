@@ -6,10 +6,9 @@ FROM students s
 JOIN classes c ON s.class_id = c.id
 ORDER BY c.name, s.last_name;
 
--- List all head teachers and their assigned subjects
-SELECT t.id, t.first_name, t.last_name, sub.name AS subject_name
+SELECT t.id, t.first_name, t.last_name, COALESCE(sub.name, 'No Subject') AS subject_name
 FROM teachers t
-JOIN subjects sub ON t.id = sub.teacher_id
+LEFT JOIN subjects sub ON t.id = sub.teacher_id
 ORDER BY t.last_name;
 
 -- Count the number of students per class
@@ -140,6 +139,15 @@ JOIN marks m ON sub.id = m.subject_id
 GROUP BY t.id
 ORDER BY avg_student_grade DESC;
 
+-- find students who are failing everywhere
+SELECT s.*
+FROM students s
+WHERE NOT EXISTS (
+    SELECT 1 FROM marks m
+    WHERE m.student_id = s.id AND m.mark >= 10
+);
+
+
 -- test
 
 SELECT
@@ -159,15 +167,22 @@ JOIN
 ORDER BY
     t.first_name, t.last_name, cs.session_date;
     
-    -- test 2
-    
-    SELECT
-    t.first_name AS teacher_first_name,
-    t.last_name AS teacher_last_name,
-    m.name AS module_name
-FROM
-    teachers t
-JOIN
-    modules m ON t.id = m.head_id
-ORDER BY
-    t.first_name, t.last_name;
+WITH TotalStudents AS (
+    SELECT c.id AS class_id, COUNT(s.id) AS total_students
+    FROM classes c
+    JOIN students s ON s.class_id = c.id
+    GROUP BY c.id
+),
+TotalAbsences AS (
+    SELECT c.id AS class_id, COUNT(a.id) AS total_absences
+    FROM classes c
+    JOIN students s ON s.class_id = c.id
+    JOIN attendance a ON a.student_id = s.id
+    WHERE a.status = 'Absent'
+    GROUP BY c.id
+)
+SELECT ts.class_id, (ta.total_absences / ts.total_students) AS absence_ratio
+FROM TotalStudents ts
+JOIN TotalAbsences ta ON ts.class_id = ta.class_id
+ORDER BY absence_ratio DESC
+LIMIT 1;
