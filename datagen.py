@@ -101,6 +101,12 @@ def generate_class_sessions(class_id, subject_id, teacher_id, room_id, existing_
                 class_sessions_map[session_datetime].add(class_id)
     return new_sessions
 
+def generate_attendance(session_id, class_id, students):
+    sql_lines = []
+    for student_id in students:
+        status = random.choice(['Present', 'Absent', 'Late'])
+        sql_lines.append(f"INSERT INTO attendance (student_id, session_id, status) VALUES ({student_id}, {session_id}, '{status}');")
+    return sql_lines
 
 def generate_marks(student_id, subject_id):
     return {
@@ -153,28 +159,40 @@ def generate_sql_data():
             subject_id_map[subject] = subject_counter  # Store subject ID
             subject_counter += 1
 
-    # Insert students (30-40 per class)
+
+    # Insert class sessions (3 per subject)
+    session_id = 1
+    existing_sessions = []
+    class_sessions_map = {}  # Track which classes have sessions on each date
+
+    # Store student IDs for each class
+    class_students_map = {class_id: [] for class_id in range(1, NUM_CLASSES + 1)}
+
     student_id = 1
     for class_id in range(1, NUM_CLASSES + 1):
         num_students = random.randint(*NUM_STUDENTS_PER_CLASS)
         for _ in range(num_students):
             student = generate_student(class_id)
             sql_lines.append(f"INSERT INTO students (id, first_name, last_name, email, class_id) VALUES ({student_id}, '{student['first_name']}', '{student['last_name']}', '{student['email']}', {class_id});")
+            class_students_map[class_id].append(student_id)  # Store student ID for the class
             student_id += 1
 
-    # Insert class sessions (3 per subject)
-    session_id = 1
-    existing_sessions = []
-    class_sessions_map = {}  # Track which classes have sessions on each date
+    # Generate sessions and attendance
     for class_id in range(1, NUM_CLASSES + 1):
         for subject_id in range(1, NUM_SUBJECTS + 1):
             teacher_id = random.randint(1, NUM_TEACHERS)
             room_id = random.randint(1, NUM_ROOMS)  # Ensure valid foreign key
             sessions = generate_class_sessions(class_id, subject_id, teacher_id, room_id, existing_sessions, class_sessions_map)
+
             for session in sessions:
                 sql_lines.append(f"INSERT INTO class_sessions (id, class_id, subject_id, session_date, teacher_id, room_id) VALUES ({session_id}, {session['class_id']}, {session['subject_id']}, '{session['session_datetime']}', {session['teacher_id']}, {session['room_id']});")
-                existing_sessions.extend(sessions)
+                existing_sessions.append(session)  # Track existing sessions
+
+                # Generate attendance records for students in this class
+                sql_lines.extend(generate_attendance(session_id, class_id, class_students_map[class_id]))
+
                 session_id += 1
+
 
     # Insert marks for each student in each subject
     for student_id in range(1, student_id):  # student_id already incremented
