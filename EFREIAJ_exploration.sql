@@ -18,8 +18,6 @@ LEFT JOIN students s ON c.id = s.class_id
 GROUP BY c.name
 ORDER BY student_count DESC;
 
--- Class & Session Insights
-
 -- Find subjects taught in each class
 SELECT c.name AS class_name, sub.name AS subject_name
 FROM class_sessions cs

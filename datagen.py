@@ -210,6 +210,6 @@ def write_sql_to_file(filename, sql_lines):
 
 # Generate data and write to file
 sql_data = generate_sql_data()
-write_sql_to_file('generated_data.sql', sql_data)
+write_sql_to_file('data-example.sql', sql_data)
 
 print("SQL file 'generated_data.sql' created successfully!")
