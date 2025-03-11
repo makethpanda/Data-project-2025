@@ -1,4 +1,4 @@
--- 1️⃣ Basic Checks
+-- Basic Checks
 
 -- Check all students and their assigned classes
 SELECT s.id, s.first_name, s.last_name, c.name AS class_name
@@ -18,7 +18,7 @@ LEFT JOIN students s ON c.id = s.class_id
 GROUP BY c.name
 ORDER BY student_count DESC;
 
--- 2️⃣ Class & Session Insights
+-- Class & Session Insights
 
 -- Find subjects taught in each class
 SELECT c.name AS class_name, sub.name AS subject_name
@@ -46,7 +46,7 @@ JOIN rooms r ON cs.room_id = r.id
 WHERE cs.session_date BETWEEN DATE_SUB(CURDATE(), INTERVAL 1 MONTH) AND CURDATE()
 ORDER BY cs.session_date;
 
--- 3️⃣ Student Performance & Grades
+-- Student Performance & Grades
 
 -- Find the top-performing students in each subject
 SELECT s.first_name, s.last_name, sub.name AS subject_name, m.mark
@@ -79,7 +79,7 @@ GROUP BY s.id
 ORDER BY total_score DESC
 LIMIT 5;
 
--- 4️⃣ Room & Schedule Management
+-- Room & Schedule Management
 
 -- Check room usage (sessions per room)
 SELECT r.name AS room_name, COUNT(cs.id) AS session_count
@@ -104,8 +104,6 @@ JOIN class_sessions cs ON r.id = cs.room_id
 GROUP BY r.id
 ORDER BY usage_count DESC
 LIMIT 1;
-
--- 5️⃣ Advanced Queries & Insights
 
 -- Find which class has the highest average student mark
 SELECT c.name AS class_name, ROUND(AVG(m.mark), 2) AS avg_mark
@@ -166,7 +164,9 @@ JOIN
     classes c ON cs.class_id = c.id
 ORDER BY
     t.first_name, t.last_name, cs.session_date;
-    
+
+
+-- CTE absence ratio
 WITH TotalStudents AS (
     SELECT c.id AS class_id, COUNT(s.id) AS total_students
     FROM classes c
@@ -174,15 +174,39 @@ WITH TotalStudents AS (
     GROUP BY c.id
 ),
 TotalAbsences AS (
-    SELECT c.id AS class_id, COUNT(a.id) AS total_absences
-    FROM classes c
-    JOIN students s ON s.class_id = c.id
-    JOIN attendance a ON a.student_id = s.id
+    SELECT cs.class_id, cs.session_date, COUNT(a.id) AS total_absences
+    FROM class_sessions cs
+    JOIN attendance a ON a.session_id = cs.id
     WHERE a.status = 'Absent'
-    GROUP BY c.id
+    GROUP BY cs.class_id, cs.session_date
 )
-SELECT ts.class_id, (ta.total_absences / ts.total_students) AS absence_ratio
-FROM TotalStudents ts
-JOIN TotalAbsences ta ON ts.class_id = ta.class_id
-ORDER BY absence_ratio DESC
+SELECT ta.class_id, ta.session_date, 
+       (ta.total_absences / ts.total_students) AS absence_ratio
+FROM TotalAbsences ta
+JOIN TotalStudents ts ON ta.class_id = ts.class_id
+ORDER BY absence_ratio DESC;
+
+WITH StudentPerformance AS (
+    SELECT m.student_id, m.subject_id, m.mark,
+           AVG(m.mark) OVER (PARTITION BY m.student_id) AS avg_grade
+    FROM marks m
+),
+StudentDeviation AS (
+    SELECT student_id, 
+           STDDEV_POP(mark) AS grade_deviation
+    FROM StudentPerformance
+    GROUP BY student_id
+),
+StudentGrades AS (
+    SELECT student_id,
+           MAX(mark) AS highest_mark,
+           MIN(mark) AS lowest_mark
+    FROM marks
+    GROUP BY student_id
+)
+SELECT s.*, sd.grade_deviation, sg.highest_mark, sg.lowest_mark
+FROM students s
+JOIN StudentDeviation sd ON s.id = sd.student_id
+JOIN StudentGrades sg ON s.id = sg.student_id
+ORDER BY sd.grade_deviation DESC
 LIMIT 1;
