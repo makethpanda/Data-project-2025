@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS modules (
 -- Create rooms table with validation for room name length
 CREATE TABLE IF NOT EXISTS rooms (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
+    name VARCHAR(50) NOT NULL UNIQUE,
     CONSTRAINT chk_room_name_length CHECK (LENGTH(name) > 0 AND LENGTH(name) <= 50)
 );
 
