@@ -191,6 +191,8 @@ WITH StudentPerformance AS (
            AVG(m.mark) OVER (PARTITION BY m.student_id) AS avg_grade
     FROM marks m
 ),
+
+-- cte student standard deviation 
 StudentDeviation AS (
     SELECT student_id, 
            STDDEV_POP(mark) AS grade_deviation
